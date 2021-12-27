@@ -6,12 +6,16 @@ FROM ubuntu:20.04 as buildoptimizer
 ARG GRB_VERSION=9.5.0
 ARG GRB_SHORT_VERSION=9.5
 
+############################
+# clone repository
+############################
 # Install git and download repository into /home/gurobi
 RUN apt-get update \
     && apt-get install -y git \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /home/gurobi \
     && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /home/gurobi
 RUN git init \
     && git remote add origin https://github.com/alexOarga/docker-optimizer \
@@ -19,7 +23,9 @@ RUN git init \
     && git checkout -t origin/master -f \
     && rm -rf .git
 
-# install gurobi package and copy the files
+############################
+# download gurobi
+############################
 WORKDIR /opt
 
 RUN apt-get update \
@@ -33,6 +39,21 @@ RUN apt-get update \
     && mv -f gurobi* gurobi \
     && rm -rf gurobi/linux64/docs
 
+############################
+# download GLPK
+############################
+# Install glpk from http
+# instructions and documentation for glpk: http://www.gnu.org/software/glpk/
+WORKDIR /opt/glpk
+RUN wget http://ftp.gnu.org/gnu/glpk/glpk-4.57.tar.gz \
+	&& tar -zxvf glpk-4.57.tar.gz
+
+## Verify package contents
+# RUN wget http://ftp.gnu.org/gnu/glpk/glpk-4.57.tar.gz.sig \
+#	&& gpg --verify glpk-4.57.tar.gz.sig
+#	#&& gpg --keyserver keys.gnupg.net --recv-keys 5981E818
+
+###############################################################################
 # After the file renaming, a clean image is build
 FROM python:3.8 AS packageoptimizer
 
@@ -48,13 +69,21 @@ ENV USER ${NB_USER}
 ENV NB_UID ${NB_UID}
 ENV HOME /home/${NB_USER}
 
-# add user
+# first we install gurobipy as root in order to get the license
+# note: this is just for prototyping purposes. Proper way would be to copy license into the image.
+RUN python -m pip install gurobipy==${GRB_VERSION}
+
+############################
+# create user user
+############################
 RUN adduser --disabled-password \
     --gecos "Default user" \
     --uid ${NB_UID} \
     ${NB_USER}
 
-# Install jupyter notebook
+############################
+# install jupyter (as root!)
+############################
 RUN pip install --no-cache-dir notebook
 
 # update system and certificates
@@ -66,19 +95,42 @@ RUN apt-get update \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+############################
+# copy downloaded files
+############################
 WORKDIR /opt/gurobi
 COPY --from=buildoptimizer /opt/gurobi .
+COPY --from=buildoptimizer /opt/glpk .
 COPY --from=buildoptimizer /home/gurobi /home/gurobi
 
 ENV GUROBI_HOME /opt/gurobi/linux64
 ENV PATH $PATH:$GUROBI_HOME/bin
 ENV LD_LIBRARY_PATH $GUROBI_HOME/lib
 
+############################
+# install gurobi
+############################
 WORKDIR /opt/gurobi/linux64
 #run the setup
 RUN python setup.py install
 
+############################
+# install glpk
+############################
+WORKDIR /opt/glpk/glpk-4.57
+RUN ./configure \
+	&& make \
+	&& make check \
+	&& make install \
+	&& make distclean \
+	&& ldconfig \
+# Cleanup
+	&& rm -rf /opt/glpk/glpk-4.57.tar.gz \
+	&& apt-get clean
 
+############################
+# install python libraries
+############################
 # Install python libraries as jovyan user
 USER jovyan
 RUN python -m pip install \
@@ -92,7 +144,11 @@ RUN python -m pip install \
 
 # Add installation folder to path
 ENV PATH="/home/jovyan/.local/bin:${PATH}"
+ENV PATH="/home/${NB_USER}/.local/bin:${PATH}"
 
+############################
+# setup permissions
+############################
 # Return to root user
 USER root
 
@@ -101,10 +157,11 @@ USER root
 RUN chown -R ${NB_UID} ${HOME}
 USER ${NB_USER}
 
-# Clone repository into working directory
+# Seup repository into working directory
 WORKDIR ${HOME}
-
 
 ENTRYPOINT [ ]
 
 CMD ["--notebook-dir=/home/gurobi", "--NotebookApp.token=''","--NotebookApp.password=''"]
+
+EXPOSE "8888"
