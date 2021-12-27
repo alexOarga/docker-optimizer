@@ -6,6 +6,19 @@ FROM ubuntu:20.04 as buildoptimizer
 ARG GRB_VERSION=9.5.0
 ARG GRB_SHORT_VERSION=9.5
 
+# Install git and download repository into /home/gurobi
+RUN apt-get update \
+    && apt-get install -y git \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /home/gurobi \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /home/gurobi
+RUN git init \
+    && git remote add origin https://github.com/alexOarga/docker-optimizer \
+    && git fetch \
+    && git checkout -t origin/master -f \
+    && rm -rf .git
+
 # install gurobi package and copy the files
 WORKDIR /opt
 
@@ -27,7 +40,6 @@ ARG GRB_VERSION=9.5.0
 
 LABEL vendor="Gurobi"
 LABEL version=${GRB_VERSION}
-
 
 # Create user as explained in: https://mybinder.readthedocs.io/en/latest/tutorials/dockerfile.html#preparing-your-dockerfile
 ARG NB_USER=gurobi
@@ -56,6 +68,7 @@ RUN apt-get update \
 
 WORKDIR /opt/gurobi
 COPY --from=buildoptimizer /opt/gurobi .
+COPY --from=buildoptimizer /home/gurobi /home/gurobi
 
 ENV GUROBI_HOME /opt/gurobi/linux64
 ENV PATH $PATH:$GUROBI_HOME/bin
@@ -87,6 +100,10 @@ USER root
 USER root
 RUN chown -R ${NB_UID} ${HOME}
 USER ${NB_USER}
+
+# Clone repository into working directory
+WORKDIR ${HOME}
+
 
 ENTRYPOINT [ ]
 
