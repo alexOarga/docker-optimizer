@@ -15,7 +15,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /home/gurobi \
     && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /home/gurobi
 RUN git init \
     && git remote add origin https://github.com/alexOarga/docker-optimizer \
@@ -99,8 +98,8 @@ RUN apt-get update \
 # copy downloaded files
 ############################
 WORKDIR /opt/gurobi
-COPY --from=buildoptimizer /opt/gurobi .
-COPY --from=buildoptimizer /opt/glpk .
+COPY --from=buildoptimizer /opt/gurobi /opt/gurobi
+COPY --from=buildoptimizer /opt/glpk /opt/glpk
 COPY --from=buildoptimizer /home/gurobi /home/gurobi
 
 ENV GUROBI_HOME /opt/gurobi/linux64
@@ -113,6 +112,8 @@ ENV LD_LIBRARY_PATH $GUROBI_HOME/lib
 WORKDIR /opt/gurobi/linux64
 #run the setup
 RUN python setup.py install
+
+ENV GRB_LICENSE_FILE=/usr/local/lib/python3.8/site-packages/gurobipy/.libs/gurobi.lic
 
 ############################
 # install glpk
@@ -157,7 +158,7 @@ USER root
 RUN chown -R ${NB_UID} ${HOME}
 USER ${NB_USER}
 
-# Seup repository into working directory
+# start directory at home
 WORKDIR ${HOME}
 
 ENTRYPOINT [ ]
