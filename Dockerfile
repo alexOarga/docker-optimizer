@@ -132,6 +132,10 @@ RUN ./configure \
 ############################
 # install python libraries
 ############################
+# Change /home/jovyan permissions prior to installing
+USER root
+RUN chown -R jovyan /home/jovyan
+
 # Install python libraries as jovyan user
 USER jovyan
 RUN python -m pip install \
