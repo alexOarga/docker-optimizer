@@ -100,7 +100,8 @@ RUN apt-get update \
 WORKDIR /opt/gurobi
 COPY --from=buildoptimizer /opt/gurobi /opt/gurobi
 COPY --from=buildoptimizer /opt/glpk /opt/glpk
-COPY --from=buildoptimizer /home/gurobi /home/gurobi
+# Note!: copied to jovyan home as it is the home assigned by binder
+COPY --from=buildoptimizer /home/gurobi /home/jovyan
 
 ENV GUROBI_HOME /opt/gurobi/linux64
 ENV PATH $PATH:$GUROBI_HOME/bin
